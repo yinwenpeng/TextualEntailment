@@ -38,7 +38,6 @@ from scipy import linalg, mat, dot
 6) tokenized sentences : better
 7) only use non-overlap pairs 
 
-9) length of nonoverlap : better
 
 
 

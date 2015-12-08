@@ -905,13 +905,13 @@ def load_SICK_corpus_binary_feature(vocabFile, trainFile, testFile, max_truncate
                 if word in set2:
                     binary1.append(1.0)
                 else:
-                    binary1.append(-1.0)
+                    binary1.append(1e-10)
             binary1=[0.0]*((maxlength-len1)/2)+binary1+[0.0]*(maxlength-(maxlength-len1)/2-len1)
             for word in words2:
                 if word in set1:
                     binary2.append(1.0)
                 else:
-                    binary2.append(-1.0)
+                    binary2.append(1e-10)
             binary2=[0.0]*((maxlength-len2)/2)+binary2+[0.0]*(maxlength-(maxlength-len2)/2-len2)            
             binarys.append(binary1)
             binarys.append(binary2)
@@ -981,13 +981,13 @@ def load_SICK_corpus_binary_feature(vocabFile, trainFile, testFile, max_truncate
                 if word in set2:
                     binary1.append(1.0)
                 else:
-                    binary1.append(-1.0)
+                    binary1.append(1e-10)
             binary1=[0.0]*((maxlength-len1)/2)+binary1+[0.0]*(maxlength-(maxlength-len1)/2-len1)
             for word in words2:
                 if word in set1:
                     binary2.append(1.0)
                 else:
-                    binary2.append(-1.0)
+                    binary2.append(1e-10)
             binary2=[0.0]*((maxlength-len2)/2)+binary2+[0.0]*(maxlength-(maxlength-len2)/2-len2)            
             binarys.append(binary1)
             binarys.append(binary2)
