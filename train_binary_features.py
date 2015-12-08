@@ -32,8 +32,6 @@ from scipy import linalg, mat, dot
 
 #need to change
 '''
-1) rouge score
-2) TF-KLD
 
 4) paragraph vector
 
