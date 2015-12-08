@@ -17,7 +17,7 @@ from WPDefined import ConvFoldPoolLayer, dropout_from_layer, shared_dataset, rep
 from cis.deep.utils.theano import debug_print
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
-from loadData import load_SICK_corpus, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA, load_extra_features
+from loadData import load_SICK_corpus_binary_feature, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA, load_extra_features
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
 from random import shuffle
@@ -25,7 +25,7 @@ from random import shuffle
 from sklearn import svm
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import LinearRegression
+from sklearn import linear_model
 
 from scipy import linalg, mat, dot
 
@@ -54,35 +54,37 @@ Doesnt work:
 
 '''
 
-def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=33):
+                    margin=0.5, L2_weight=0.00065, update_freq=1, norm_threshold=5.0, max_truncate=33):
     maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/SICK/';
     rng = numpy.random.RandomState(23455)
-    datasets, vocab_size=load_SICK_corpus(rootPath+'vocab.txt', rootPath+'train.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
+    datasets, vocab_size=load_SICK_corpus_binary_feature(rootPath+'vocab.txt', rootPath+'train_plus_dev.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
-    mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
-    extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli_negation_len1_len2.txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2.txt')
+    mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_plus_dev_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
+    extra_train, extra_test=load_extra_features(rootPath+'train_plus_dev_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(newsimi0.4).txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(newsimi0.4).txt')
     discri_train, discri_test=load_extra_features(rootPath+'train_discri_features_0.3.txt', rootPath+'test_discri_features_0.3.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
-    indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
+    indices_train, train_binary, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
     trainLengths_l=trainLengths[::2]
     trainLengths_r=trainLengths[1::2]
     normalized_train_length_l=normalized_train_length[::2]
     normalized_train_length_r=normalized_train_length[1::2]
+    train_binary_l=train_binary[::2,:]
+    train_binary_r=train_binary[1::2,:]
 
     trainLeftPad_l=trainLeftPad[::2]
     trainLeftPad_r=trainLeftPad[1::2]
     trainRightPad_l=trainRightPad[::2]
     trainRightPad_r=trainRightPad[1::2]    
-    indices_test, testY, testLengths,normalized_test_length, testLeftPad, testRightPad= datasets[1]
+    indices_test, test_binary, testY, testLengths,normalized_test_length, testLeftPad, testRightPad= datasets[1]
 
     indices_test_l=indices_test[::2,:]
     indices_test_r=indices_test[1::2,:]
@@ -90,6 +92,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     testLengths_r=testLengths[1::2]
     normalized_test_length_l=normalized_test_length[::2]
     normalized_test_length_r=normalized_test_length[1::2]
+    test_binary_l=test_binary[::2,:]
+    test_binary_r=test_binary[1::2,:]
     
     testLeftPad_l=testLeftPad[::2]
     testLeftPad_r=testLeftPad[1::2]
@@ -137,6 +141,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     length_r=T.lscalar()
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
+    binary_l=T.dmatrix()
+    binary_r=T.dmatrix()
     mts=T.dmatrix()
     extra=T.dmatrix()
     discri=T.dmatrix()
@@ -156,19 +162,21 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     # Reshape matrix of rasterized images of shape (batch_size,28*28)
     # to a 4D tensor, compatible with our LeNetConvPoolLayer
     #layer0_input = x.reshape(((batch_size*4), 1, ishape[0], ishape[1]))
-    layer0_l_input = embeddings[x_index_l.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)
-    layer0_r_input = embeddings[x_index_r.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)
+    layer0_l_input = debug_print(embeddings[x_index_l.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2), 'layer0_l_input')
+    layer0_r_input = debug_print(embeddings[x_index_r.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2), 'layer0_r_input')
+    layer0_l_input_enhance=debug_print(T.concatenate([layer0_l_input,binary_l.dimshuffle('x','x',0,1)], axis=2), 'layer0_l_input_enhance')
+    layer0_r_input_enhance=debug_print(T.concatenate([layer0_r_input,binary_r.dimshuffle('x','x',0,1)], axis=2), 'layer0_r_input_enhance')
     
     
-    conv_W, conv_b=create_conv_para(rng, filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))
+    conv_W, conv_b=create_conv_para(rng, filter_shape=(nkerns[0], 1, filter_size[0]+1, filter_size[1]))
 
     #layer0_output = debug_print(layer0.output, 'layer0.output')
-    layer0_l = Conv_with_input_para(rng, input=layer0_l_input,
-            image_shape=(batch_size, 1, ishape[0], ishape[1]),
-            filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]), W=conv_W, b=conv_b)
-    layer0_r = Conv_with_input_para(rng, input=layer0_r_input,
-            image_shape=(batch_size, 1, ishape[0], ishape[1]),
-            filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]), W=conv_W, b=conv_b)
+    layer0_l = Conv_with_input_para(rng, input=layer0_l_input_enhance,
+            image_shape=(batch_size, 1, ishape[0]+1, ishape[1]),
+            filter_shape=(nkerns[0], 1, filter_size[0]+1, filter_size[1]), W=conv_W, b=conv_b)
+    layer0_r = Conv_with_input_para(rng, input=layer0_r_input_enhance,
+            image_shape=(batch_size, 1, ishape[0]+1, ishape[1]),
+            filter_shape=(nkerns[0], 1, filter_size[0]+1, filter_size[1]), W=conv_W, b=conv_b)
     layer0_l_output=debug_print(layer0_l.output, 'layer0_l.output')
     layer0_r_output=debug_print(layer0_r.output, 'layer0_r.output')
     
@@ -225,7 +233,7 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2+5, n_out=3)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2+9, n_out=3)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
@@ -239,6 +247,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
           givens={
             x_index_l: indices_test_l[index: index + batch_size],
             x_index_r: indices_test_r[index: index + batch_size],
+            binary_l: test_binary_l[index: index + batch_size],
+            binary_r: test_binary_r[index: index + batch_size],
             y: testY[index: index + batch_size],
             left_l: testLeftPad_l[index],
             right_l: testRightPad_l[index],
@@ -278,6 +288,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
+            binary_l: train_binary_l[index: index + batch_size],
+            binary_r: train_binary_r[index: index + batch_size],
             y: trainY[index: index + batch_size],
             left_l: trainLeftPad_l[index],
             right_l: trainRightPad_l[index],
@@ -297,6 +309,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
+            binary_l: train_binary_l[index: index + batch_size],
+            binary_r: train_binary_r[index: index + batch_size],
             y: trainY[index: index + batch_size],
             left_l: trainLeftPad_l[index],
             right_l: trainRightPad_l[index],
@@ -416,10 +430,11 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
                 clf.fit(train_features, train_y)
                 results=clf.predict(test_features)
-                #lr=LinearRegression().fit(train_features, train_y)
-                #results_lr=lr.predict(test_features)
+                lr=linear_model.LogisticRegression(C=1e5)
+                lr.fit(train_features, train_y)
+                results_lr=lr.predict(test_features)
                 corr_count=0
-                #corr_lr=0
+                corr_lr=0
                 corr_neu=0
                 neu_co=0
                 corr_ent=0
@@ -428,6 +443,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 contr_co=0
                 test_size=len(test_y)
                 for i in range(test_size):
+                    if results_lr[i]==test_y[i]:
+                        corr_lr+=1
                     if test_y[i]==0:#NEUTRAL
                         neu_co+=1
                         if results[i]==test_y[i]:
@@ -440,12 +457,7 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                         contr_co+=1
                         if results[i]==test_y[i]:
                             corr_contr+=1
-                    '''
-                    if results[i]==test_y[i]:
-                        corr_count+=1
-                        if test_y[i]==0: #NEUTRAL
-                            corr_neu+=1
-                    '''
+
                         
                     #if numpy.absolute(results_lr[i]-test_y[i])<0.5:
                     #    corr_lr+=1
@@ -454,17 +466,17 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 acc_neu=corr_neu*1.0/neu_co
                 acc_ent=corr_ent*1.0/ent_co
                 acc_contr=corr_contr*1.0/contr_co
-                #acc_lr=corr_lr*1.0/test_size
+                acc_lr=corr_lr*1.0/test_size
                 if acc > max_acc:
                     max_acc=acc
                     best_epoch=epoch
                 if test_acc > max_acc:
                     max_acc=test_acc
                     best_epoch=epoch                 
-                #if acc_lr> max_acc:
-                #    max_acc=acc_lr
-                #    best_epoch=epoch
-                print '\t\t\tsvm acc: ', acc, ' max acc: ',    max_acc,'(at',best_epoch,')',' Neu: ',acc_neu, ' Ent: ',acc_ent, ' Contr: ',acc_contr 
+                if acc_lr> max_acc:
+                    max_acc=acc_lr
+                    best_epoch=epoch
+                print '\t\t\tsvm:', acc, 'lr:', acc_lr, 'max:',    max_acc,'(at',best_epoch,')','Neu:',acc_neu, 'Ent:',acc_ent, 'Contr:',acc_contr 
 
             if patience <= iter:
                 done_looping = True

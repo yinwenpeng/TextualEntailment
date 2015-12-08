@@ -30,20 +30,20 @@ class Conv_with_input_para(object):
         self.b = b
 
         # convolve input feature maps with filters
-        conv_out = conv.conv2d(input=input, filters=self.W,
-                filter_shape=filter_shape, image_shape=image_shape, border_mode='valid')    #here, we should pad enough zero padding for input 
+        conv_out = debug_print(conv.conv2d(input=input, filters=self.W,
+                filter_shape=filter_shape, image_shape=image_shape, border_mode='valid') ,'conv_out')   #here, we should pad enough zero padding for input 
         
         # add the bias term. Since the bias is a vector (1D array), we first
         # reshape it to a tensor of shape (1,n_filters,1,1). Each bias will
         # thus be broadcasted across mini-batches and feature map
         # width & height
-        conv_with_bias = T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        narrow_conv_out=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], image_shape[3]-filter_shape[3]+1)) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
+        conv_with_bias = debug_print(T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x')),'conv_with_bias')
+        narrow_conv_out=debug_print(conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], image_shape[3]-filter_shape[3]+1)),'narrow_conv_out') #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
         
         #pad filter_size-1 zero embeddings at both sides
         left_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
         right_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
-        self.output = T.concatenate([left_padding, narrow_conv_out, right_padding], axis=3) 
+        self.output = debug_print(T.concatenate([left_padding, narrow_conv_out, right_padding], axis=3) ,'self.output')
         
 
         # store parameters of this layer
@@ -293,7 +293,7 @@ class Average_Pooling_for_Top(object):
         
         weights_question_matrix=T.repeat(weights_question, kern, axis=0)
         weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
-        
+        '''
         #with attention
         dot_l=debug_print(T.sum(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=debug_print(T.sum(input_r_matrix*weights_answer_matrix, axis=1),'dot_r')      
@@ -301,7 +301,7 @@ class Average_Pooling_for_Top(object):
         #without attention
         dot_l=debug_print(T.sum(input_l_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=debug_print(T.sum(input_r_matrix, axis=1),'dot_r')      
-        '''
+        
         '''
         #with attention, then max pooling
         dot_l=debug_print(T.max(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
