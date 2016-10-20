@@ -16,7 +16,7 @@ from theano.tensor.signal import downsample
 from random import shuffle
 
 from loadData import load_SNLI_dataset, load_word2vec_to_init, load_word2vec
-from common_functions import create_conv_para,GRU_Batch_Tensor_Input_with_Mask_with_MatrixInit, Conv_with_input_para, LSTM_Batch_Tensor_Input_with_Mask, create_ensemble_para, L2norm_paraList, Diversify_Reg, create_GRU_para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
+from common_functions import create_conv_para,GRU_Batch_Tensor_Input_with_Mask_with_MatrixInit, row_wise_cosine, Conv_with_input_para, LSTM_Batch_Tensor_Input_with_Mask, create_ensemble_para, L2norm_paraList, Diversify_Reg, create_GRU_para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
 def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, L2_weight=0.001, Div_reg=0.001, emb_size=50, hidden_size=50, batch_size=200, maxSentLen=40):
     '''
     epoch: iterating over all training examples once is called one epoch, usually this process will repeated multiple times
@@ -114,13 +114,13 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, L2_weight=0.001, Div_reg=0
 #     sent_reps_l=T.sum(sentBatch_l_input, axis=2)
 #     sent_reps_r=T.sum(sentBatch_r_input, axis=2)
     
-    LR_input=T.concatenate([sent_reps_l, sent_reps_r], axis=1)
+    LR_input=T.concatenate([sent_reps_l, sent_reps_r, row_wise_cosine(sent_reps_l, sent_reps_r)], axis=1)
      
     #classification layer, it is just mapping from a feature vector of size "hidden_size" to a vector of only two values: positive, negative
-    U_LR = create_ensemble_para(rng, 3, 2*hidden_size) # the weight matrix hidden_size*2
+    U_LR = create_ensemble_para(rng, 3, 2*hidden_size+1) # the weight matrix hidden_size*2
     LR_b = theano.shared(value=np.zeros((3,),dtype=theano.config.floatX),name='LR_b', borrow=True)  #bias for each target class  
     LR_para=[U_LR, LR_b]
-    layer_LR=LogisticRegression(rng, input=LR_input, n_in=hidden_size*2, n_out=3, W=U_LR, b=LR_b) #basically it is a multiplication between weight matrix and input feature vector
+    layer_LR=LogisticRegression(rng, input=LR_input, n_in=hidden_size*2Z, n_out=3, W=U_LR, b=LR_b) #basically it is a multiplication between weight matrix and input feature vector
     loss=layer_LR.negative_log_likelihood(labels)  #for classification task, we usually used negative log likelihood as loss, the lower the better.
     
     params = [embeddings]+NN_l_para+NN_a_para+NN_r_para+LR_para   # put all model parameters together

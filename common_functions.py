@@ -463,6 +463,7 @@ class GRU_Batch_Tensor_Input_with_Mask(object):
         self.output_tensor=s.dimshuffle(2,1,0)  #(batch, emb_size, sentlength) again
 
         self.output_sent_rep=self.output_tensor[:,:,-1]
+        self.output_sent_rep_meanpooling=T.mean(self.output_tensor, axis=2)
 
 class Bd_LSTM_Batch_Tensor_Input_with_Mask(object):
     # Bidirectional GRU Layer.
@@ -1589,6 +1590,13 @@ def cosine_simi(x, y):
     b = np.array(y)
     c = 1-cosine(a,b)
     return c
+
+def row_wise_cosine(matrix1, matrix2):
+    dot_pro=T.sum(matrix1*matrix2, axis=1)
+    len1=T.sqrt(T.sum(matrix1**2, axis=1))
+    len2=T.sqrt(T.sum(matrix2**2, axis=1))
+    cosine_vec=dot_pro/(len1*len2)
+    return cosine_vec.reshape((matrix1.shape[0], 1))
 
 class Conv_then_GRU_then_Classify(object):
     """Pool Layer of a convolutional network """
