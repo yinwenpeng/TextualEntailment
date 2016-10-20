@@ -45,7 +45,6 @@ import numpy
 import random
 import theano
 import theano.tensor as T
-from cis.deep.utils.theano import debug_print
 
 
 
@@ -59,7 +58,7 @@ class LogisticRegression(object):
     determine a class membership probability.
     """
 
-    def __init__(self, rng, input, n_in, n_out):
+    def __init__(self, rng, input, n_in, n_out, W, b):
         """ Initialize the parameters of the logistic regression
 
         :type input: theano.tensor.TensorType
@@ -82,15 +81,18 @@ class LogisticRegression(object):
                                                  dtype=theano.config.floatX),  # @UndefinedVariable
                                 name='W', borrow=True)
         '''
-        self.W= theano.shared(numpy.asarray(rng.uniform(
-                    low=-numpy.sqrt(6. / (n_in + n_out)),
-                    high=numpy.sqrt(6. / (n_in + n_out)),
-                    size=(n_in, n_out)), dtype=theano.config.floatX), borrow=True)
-        
-        # initialize the baises b as a vector of n_out 0s
-        self.b = theano.shared(value=numpy.zeros((n_out,),
-                                                 dtype=theano.config.floatX),  # @UndefinedVariable
-                               name='b', borrow=True)
+#         self.W= theano.shared(numpy.asarray(rng.uniform(
+#                     low=-numpy.sqrt(6. / (n_in + n_out)),
+#                     high=numpy.sqrt(6. / (n_in + n_out)),
+#                     size=(n_in, n_out)), dtype=theano.config.floatX), borrow=True)
+#         
+#         # initialize the baises b as a vector of n_out 0s
+#         self.b = theano.shared(value=numpy.zeros((n_out,),
+#                                                  dtype=theano.config.floatX),  # @UndefinedVariable
+#                                name='b', borrow=True)
+    
+        self.W=W
+        self.b=b
         before_softmax=T.dot(input, self.W) + self.b
         # compute vector of class-membership probabilities in symbolic form, 
         self.p_y_given_x =T.nnet.softmax(before_softmax) # is a vector
@@ -98,7 +100,7 @@ class LogisticRegression(object):
         self.prop_for_posi=self.p_y_given_x[:,1:2]
         # compute prediction as class whose probability is maximal in
         # symbolic form
-        self.y_pred = debug_print(T.argmax(self.p_y_given_x, axis=1),'y_pred') # choose the maximal element in above vector
+        self.y_pred = T.argmax(self.p_y_given_x, axis=1) # choose the maximal element in above vector
 
         # parameters of the model
         self.params = [self.W, self.b]
@@ -130,7 +132,7 @@ class LogisticRegression(object):
         # LP[n-1,y[n-1]]] and T.mean(LP[T.arange(y.shape[0]),y]) is
         # the mean (across minibatch examples) of the elements in v,
         # i.e., the mean log-likelihood across the minibatch.  
-        y=debug_print(y,'y_true')
+
         log_likelihood=-T.mean(T.log(self.p_y_given_x)[T.arange(y.shape[0]), y])
         return log_likelihood
 
@@ -153,7 +155,7 @@ class LogisticRegression(object):
         :param y: corresponds to a vector that gives for each example the
                   correct label
         """
-        y=debug_print(y,'y_true')
+
         # check if y has same dimension of y_pred
         if y.ndim != self.y_pred.ndim:
             raise TypeError('y should have the same shape as self.y_pred',

@@ -134,16 +134,13 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
     rval = [(indices_train,train_set_Lengths, train_left_pad, train_right_pad), (indices_dev, devY, valid_set_Lengths, dev_left_pad, dev_right_pad)]
     return rval, word_ind-1
 
-def load_word2vec_to_init(rand_values, file):
-
-    readFile=open(file, 'r')
-    line_count=1
-    for line in readFile:
-        tokens=line.strip().split()
-        rand_values[line_count]=numpy.array(map(float, tokens[1:]))
-        line_count+=1                                            
-    readFile.close()
-    print 'initialization over...'
+def load_word2vec_to_init(rand_values, ivocab, word2vec):
+    
+    for id, word in ivocab.iteritems():
+        emb=word2vec.get(word)
+        if emb is not None:
+            rand_values[id]=numpy.array(emb)
+    print '==> use word2vec initialization over...'
     return rand_values
     
 def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=60
@@ -1055,3 +1052,82 @@ def load_SICK_corpus_binary_feature(vocabFile, trainFile, testFile, max_truncate
 
     rval = [(indices_train,train_binary, train_set_y, train_set_Lengths, normalized_train_length, train_left_pad, train_right_pad), (indices_test, test_binary, test_set_y, test_set_Lengths, normalized_test_length, test_left_pad, test_right_pad)]
     return rval, word_ind-1
+def transfer_wordlist_2_idlist_with_maxlen(token_list, vocab_map, maxlen):
+    '''
+    From such as ['i', 'love', 'Munich'] to idlist [23, 129, 34], if maxlen is 5, then pad two zero in the left side, becoming [0, 0, 23, 129, 34]
+    '''
+    idlist=[]
+    for word in token_list:
+        id=vocab_map.get(word)
+        if id is None: # if word was not in the vocabulary
+            id=len(vocab_map)+1  # id of true words starts from 1, leaving 0 to "pad id"
+            vocab_map[word]=id
+        idlist.append(id)
+    mask_list=[1.0]*len(idlist) # mask is used to indicate each word is a true word or a pad word
+    pad_size=maxlen-len(idlist)
+    if pad_size>0:
+        idlist=[0]*pad_size+idlist
+        mask_list=[0.0]*pad_size+mask_list
+    else: # if actual sentence len is longer than the maxlen, truncate
+        idlist=idlist[:maxlen]
+        mask_list=mask_list[:maxlen]
+    return idlist, mask_list
+def load_SNLI_dataset(maxlen=40):
+    root="/mounts/data/proj/wenpeng/Dataset/StanfordEntailment/"
+    files=['train.txt', 'test.txt']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().lower().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                sentence_wordlist_l=parts[1].strip().split()
+                sentence_wordlist_r=parts[2].strip().split()
+                if len(sentence_wordlist_l) > max_sen_len:
+                    max_sen_len=len(sentence_wordlist_l)
+                if len(sentence_wordlist_r) > max_sen_len:
+                    max_sen_len=len(sentence_wordlist_r)
+                labels.append(label)
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len       
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+def load_word2vec():
+    word2vec = {}
+    
+    print "==> loading 300d word2vec"
+#     with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/glove/glove.6B." + str(dim) + "d.txt")) as f:
+    f=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r')
+    for line in f:    
+        l = line.split()
+        word2vec[l[0]] = map(float, l[1:])
+            
+    print "==> word2vec is loaded"
+    
+    return word2vec 
